@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,25 +85,30 @@ func (m *cmd) init(ctx context.Context, p []byte) error {
 		},
 	)))
 
-	var inputs map[string]string
-
 	switch strings.ToLower(m.typ) {
 	case "json":
-		if err := json.Unmarshal(p, &inputs); err != nil {
+		if err := json.Unmarshal(p, &m.inputs); err != nil {
 			return fmt.Errorf("json unmarshal: %w", err)
 		}
 	case "yaml":
-		if err := yaml.Unmarshal(p, &inputs); err != nil {
+		if err := yaml.Unmarshal(p, &m.inputs); err != nil {
 			return fmt.Errorf("yaml unmarshal: %w", err)
 		}
 	default:
 		return fmt.Errorf("unsupported format: %q", m.typ)
 	}
 
-	m.inputs = make(map[string]any, len(inputs))
-
-	for k, v := range inputs {
-		m.inputs[k] = v
+	for k, v := range m.inputs {
+		switch v := v.(type) {
+		case nil:
+			m.inputs[k] = ""
+		case int:
+			m.inputs[k] = strconv.Itoa(v)
+		case string:
+			m.inputs[k] = v
+		default:
+			m.inputs[k] = fmt.Sprint(v)
+		}
 	}
 
 	return nil
