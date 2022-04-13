@@ -84,17 +84,25 @@ func (m *cmd) init(ctx context.Context, p []byte) error {
 		},
 	)))
 
+	var inputs map[string]string
+
 	switch strings.ToLower(m.typ) {
 	case "json":
-		if err := json.Unmarshal(p, &m.inputs); err != nil {
+		if err := json.Unmarshal(p, &inputs); err != nil {
 			return fmt.Errorf("json unmarshal: %w", err)
 		}
 	case "yaml":
-		if err := yaml.Unmarshal(p, &m.inputs); err != nil {
+		if err := yaml.Unmarshal(p, &inputs); err != nil {
 			return fmt.Errorf("yaml unmarshal: %w", err)
 		}
 	default:
 		return fmt.Errorf("unsupported format: %q", m.typ)
+	}
+
+	m.inputs = make(map[string]any, len(inputs))
+
+	for k, v := range inputs {
+		m.inputs[k] = v
 	}
 
 	return nil
