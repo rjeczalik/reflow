@@ -205,7 +205,7 @@ poll:
 				return fmt.Errorf("get workflow run error: %w", err)
 			}
 
-			fmt.Fprintf(os.Stderr, "🛠  Workflow status: %q\n", *workflow.Status)
+			fmt.Fprintf(os.Stderr, "🛠  Workflow status: %q [%s]\n", *workflow.Status, *workflow.HTMLURL)
 
 			if c := workflow.Conclusion; c != nil && *c != "" {
 				break poll
@@ -217,7 +217,7 @@ poll:
 	}
 
 	if got, want := *workflow.Conclusion, "success"; got != want {
-		return fmt.Errorf("undesired workflow status: got %q, want %q", got, want)
+		return fmt.Errorf("undesired workflow status: got %q, want %q [%s]", got, want, *workflow.Status)
 	}
 
 	return nil
