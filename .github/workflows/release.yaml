@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-go@v3
+      with:
+        go-version: 1.18.x
+    - run: |
+        go test -race -v ./...
+        go build -tags netgo,osusergo -ldflags '-w -extldflags "-static"' -o reflow-linux-amd64 .
+    - uses: rjeczalik/action-gh-release@v1
+      with:
+        files: |
+          reflow-linux-amd64
