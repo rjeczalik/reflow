@@ -1,6 +1,7 @@
 package reflow
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"rafal.dev/reflow/command"
@@ -16,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/oauth2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -50,19 +51,14 @@ type callCmd struct {
 	typ      string
 	branch   string
 	input    string
-	owner    string
-	repo     string
 	workflow string
 	follow   bool
 	inputs   map[string]any
-	client   *github.Client
 }
 
 func (m *callCmd) register(f *pflag.FlagSet) {
 	f.StringVarP(&m.typ, "type", "t", "yaml", "Encoding type of the inputs")
-	f.StringVarP(&m.owner, "owner", "o", "", "Repository owner")
 	f.StringVarP(&m.input, "input", "n", "-", "Inputs")
-	f.StringVarP(&m.repo, "repo", "r", "", "Repository name")
 	f.StringVarP(&m.branch, "branch", "b", "heads/master", "Workflow tree reference")
 	f.StringVarP(&m.workflow, "workflow", "w", "", "Path of the workflow to run")
 	f.IntVarP(&m.perpage, "pages", "p", 10, "Per page limit while listing workflows")
@@ -98,12 +94,6 @@ func (m *callCmd) unmarshal(p []byte, v interface{}) error {
 }
 
 func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
-	m.client = github.NewClient(oauth2.NewClient(m.Context(), oauth2.StaticTokenSource(
-		&oauth2.Token{
-			AccessToken: m.token,
-		},
-	)))
-
 	p, err := m.read(m.input)
 	if err != nil {
 		return command.Errorf("read error: %w", err)
@@ -113,17 +103,32 @@ func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
 		return command.Errorf("unmarshal error: %w", err)
 	}
 
+	data := m.Template.JSON()
+
 	for k, v := range m.inputs {
+		var s string
 		switch v := v.(type) {
 		case nil:
-			m.inputs[k] = ""
+			s = ""
 		case int:
-			m.inputs[k] = strconv.Itoa(v)
+			s = strconv.Itoa(v)
 		case string:
-			m.inputs[k] = v
+			s = v
 		default:
-			m.inputs[k] = fmt.Sprint(v)
+			s = fmt.Sprint(v)
 		}
+
+		if data != nil {
+			if t, err := template.New(k).Parse(s); err == nil {
+				var buf bytes.Buffer
+
+				if err := t.Execute(&buf, data); err == nil {
+					s = buf.String()
+				}
+			}
+		}
+
+		m.inputs[k] = s
 	}
 
 	return next
@@ -132,7 +137,7 @@ func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
 func (m *callCmd) run(*cobra.Command, []string) error {
 	anchor := "reflow/" + uuid.New().String()
 
-	ref, _, err := m.client.Git.GetRef(m.Context(), m.owner, m.repo, m.branch)
+	ref, _, err := m.GitHub.Git.GetRef(m.Context(), m.Owner, m.Repo, m.branch)
 	if err != nil {
 		return fmt.Errorf("get ref error: %w", err)
 	}
@@ -142,18 +147,18 @@ func (m *callCmd) run(*cobra.Command, []string) error {
 		Object: ref.Object,
 	}
 
-	ref, _, err = m.client.Git.CreateRef(m.Context(), m.owner, m.repo, branch)
+	ref, _, err = m.GitHub.Git.CreateRef(m.Context(), m.Owner, m.Repo, branch)
 	if err != nil {
 		return fmt.Errorf("create ref error: %w", err)
 	}
-	defer m.client.Git.DeleteRef(m.Context(), m.owner, m.repo, *ref.Ref)
+	defer m.GitHub.Git.DeleteRef(m.Context(), m.Owner, m.Repo, *ref.Ref)
 
 	req := github.CreateWorkflowDispatchEventRequest{
 		Ref:    anchor,
 		Inputs: m.inputs,
 	}
 
-	_, err = m.client.Actions.CreateWorkflowDispatchEventByFileName(m.Context(), m.owner, m.repo, m.workflow, req)
+	_, err = m.GitHub.Actions.CreateWorkflowDispatchEventByFileName(m.Context(), m.Owner, m.Repo, m.workflow, req)
 	if err != nil {
 		return fmt.Errorf("dispatch workflow run error: %w", err)
 	}
@@ -179,7 +184,7 @@ func (m *callCmd) run(*cobra.Command, []string) error {
 	time.Sleep(10 * time.Second) // warmup
 
 	for {
-		w, _, err := m.client.Actions.ListWorkflowRunsByFileName(m.Context(), m.owner, m.repo, m.workflow, opts)
+		w, _, err := m.GitHub.Actions.ListWorkflowRunsByFileName(m.Context(), m.Owner, m.Repo, m.workflow, opts)
 		if err != nil {
 			return fmt.Errorf("list workflow runs error: %w", err)
 		}
@@ -215,7 +220,7 @@ poll:
 	for {
 		select {
 		case <-tick.C:
-			workflow, _, err = m.client.Actions.GetWorkflowRunByID(m.Context(), m.owner, m.repo, *workflow.ID)
+			workflow, _, err = m.GitHub.Actions.GetWorkflowRunByID(m.Context(), m.Owner, m.Repo, *workflow.ID)
 			if err != nil {
 				return fmt.Errorf("get workflow run error: %w", err)
 			}
