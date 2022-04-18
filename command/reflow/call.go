@@ -1,31 +1,55 @@
-package main
+package reflow
 
 import (
-	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
 	"time"
 
+	"rafal.dev/reflow/command"
+
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/oauth2"
 	"gopkg.in/yaml.v3"
 )
 
-type cmd struct {
-	start    time.Time
+func NewCallCommand(app *command.App) *cobra.Command {
+	m := &callCmd{
+		App:   app,
+		token: os.Getenv("GITHUB_TOKEN"),
+	}
+
+	cmd := &cobra.Command{
+		Use:   "call",
+		Short: "Call manual workflow",
+		Args:  cobra.NoArgs,
+		RunE:  m.run,
+	}
+
+	m.register(cmd.Flags())
+
+	command.Use(cmd, m.pre)
+
+	return cmd
+}
+
+type callCmd struct {
+	*command.App
+
 	interval time.Duration
 	timeout  time.Duration
 	perpage  int
 	token    string
 	typ      string
 	branch   string
+	input    string
 	owner    string
 	repo     string
 	workflow string
@@ -34,57 +58,29 @@ type cmd struct {
 	client   *github.Client
 }
 
-func (m *cmd) register(f *flag.FlagSet) {
-	f.StringVar(&m.typ, "t", "yaml", "Encoding type of the inputs")
-	f.StringVar(&m.owner, "o", "", "Repository owner")
-	f.StringVar(&m.repo, "r", "", "Repository name")
-	f.StringVar(&m.branch, "b", "heads/master", "Workflow tree reference")
-	f.StringVar(&m.workflow, "w", "", "Path of the workflow to run")
-	f.IntVar(&m.perpage, "p", 10, "Per page limit while listing workflows")
-	f.DurationVar(&m.interval, "i", 30*time.Second, "Poll interval to check on dispatched workflow")
-	f.DurationVar(&m.timeout, "x", 3*time.Minute, "Max time for looking up a workflow run")
-	f.BoolVar(&m.follow, "f", true, "Follow the dispatched workflow run")
+func (m *callCmd) register(f *pflag.FlagSet) {
+	f.StringVarP(&m.typ, "type", "t", "yaml", "Encoding type of the inputs")
+	f.StringVarP(&m.owner, "owner", "o", "", "Repository owner")
+	f.StringVarP(&m.input, "input", "n", "-", "Inputs")
+	f.StringVarP(&m.repo, "repo", "r", "", "Repository name")
+	f.StringVarP(&m.branch, "branch", "b", "heads/master", "Workflow tree reference")
+	f.StringVarP(&m.workflow, "workflow", "w", "", "Path of the workflow to run")
+	f.IntVarP(&m.perpage, "pages", "p", 10, "Per page limit while listing workflows")
+	f.DurationVarP(&m.interval, "interval", "i", 30*time.Second, "Poll interval to check on dispatched workflow")
+	f.DurationVarP(&m.timeout, "max-lookup", "x", 3*time.Minute, "Max time for looking up a workflow run")
+	f.BoolVarP(&m.follow, "follow", "f", true, "Follow the dispatched workflow run")
 }
 
-func die(format string, v ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", v...)
-	os.Exit(1)
-}
-
-func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
-	defer stop()
-
-	m := &cmd{
-		token: os.Getenv("GITHUB_TOKEN"),
-		start: time.Now(),
-	}
-
-	m.register(flag.CommandLine)
-
-	flag.Parse()
-
-	p, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		die("read error: %+v", err)
-	}
-
-	if err := m.init(ctx, p); err != nil {
-		die("init failed: %+v", err)
-	}
-
-	if err := m.run(ctx); err != nil {
-		die("run error: %+v", err)
+func (m *callCmd) read(file string) ([]byte, error) {
+	switch file {
+	case "-":
+		return io.ReadAll(os.Stdin)
+	default:
+		return ioutil.ReadFile(file)
 	}
 }
 
-func (m *cmd) init(ctx context.Context, p []byte) error {
-	m.client = github.NewClient(oauth2.NewClient(ctx, oauth2.StaticTokenSource(
-		&oauth2.Token{
-			AccessToken: m.token,
-		},
-	)))
-
+func (m *callCmd) unmarshal(p []byte, v interface{}) error {
 	switch strings.ToLower(m.typ) {
 	case "json":
 		if err := json.Unmarshal(p, &m.inputs); err != nil {
@@ -96,6 +92,25 @@ func (m *cmd) init(ctx context.Context, p []byte) error {
 		}
 	default:
 		return fmt.Errorf("unsupported format: %q", m.typ)
+	}
+
+	return nil
+}
+
+func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
+	m.client = github.NewClient(oauth2.NewClient(m.Context(), oauth2.StaticTokenSource(
+		&oauth2.Token{
+			AccessToken: m.token,
+		},
+	)))
+
+	p, err := m.read(m.input)
+	if err != nil {
+		return command.Errorf("read error: %w", err)
+	}
+
+	if err := m.unmarshal(p, &m.inputs); err != nil {
+		return command.Errorf("unmarshal error: %w", err)
 	}
 
 	for k, v := range m.inputs {
@@ -111,13 +126,13 @@ func (m *cmd) init(ctx context.Context, p []byte) error {
 		}
 	}
 
-	return nil
+	return next
 }
 
-func (m *cmd) run(ctx context.Context) error {
+func (m *callCmd) run(*cobra.Command, []string) error {
 	anchor := "reflow/" + uuid.New().String()
 
-	ref, _, err := m.client.Git.GetRef(ctx, m.owner, m.repo, m.branch)
+	ref, _, err := m.client.Git.GetRef(m.Context(), m.owner, m.repo, m.branch)
 	if err != nil {
 		return fmt.Errorf("get ref error: %w", err)
 	}
@@ -127,18 +142,18 @@ func (m *cmd) run(ctx context.Context) error {
 		Object: ref.Object,
 	}
 
-	ref, _, err = m.client.Git.CreateRef(ctx, m.owner, m.repo, branch)
+	ref, _, err = m.client.Git.CreateRef(m.Context(), m.owner, m.repo, branch)
 	if err != nil {
 		return fmt.Errorf("create ref error: %w", err)
 	}
-	defer m.client.Git.DeleteRef(ctx, m.owner, m.repo, *ref.Ref)
+	defer m.client.Git.DeleteRef(m.Context(), m.owner, m.repo, *ref.Ref)
 
 	req := github.CreateWorkflowDispatchEventRequest{
 		Ref:    anchor,
 		Inputs: m.inputs,
 	}
 
-	_, err = m.client.Actions.CreateWorkflowDispatchEventByFileName(ctx, m.owner, m.repo, m.workflow, req)
+	_, err = m.client.Actions.CreateWorkflowDispatchEventByFileName(m.Context(), m.owner, m.repo, m.workflow, req)
 	if err != nil {
 		return fmt.Errorf("dispatch workflow run error: %w", err)
 	}
@@ -164,7 +179,7 @@ func (m *cmd) run(ctx context.Context) error {
 	time.Sleep(10 * time.Second) // warmup
 
 	for {
-		w, _, err := m.client.Actions.ListWorkflowRunsByFileName(ctx, m.owner, m.repo, m.workflow, opts)
+		w, _, err := m.client.Actions.ListWorkflowRunsByFileName(m.Context(), m.owner, m.repo, m.workflow, opts)
 		if err != nil {
 			return fmt.Errorf("list workflow runs error: %w", err)
 		}
@@ -181,8 +196,8 @@ func (m *cmd) run(ctx context.Context) error {
 		}
 
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-m.Context().Done():
+			return m.Context().Err()
 		case <-timeout.C:
 			return fmt.Errorf("looking for workflow run has timed out after %s", m.timeout)
 		case <-tick.C:
@@ -200,7 +215,7 @@ poll:
 	for {
 		select {
 		case <-tick.C:
-			workflow, _, err = m.client.Actions.GetWorkflowRunByID(ctx, m.owner, m.repo, *workflow.ID)
+			workflow, _, err = m.client.Actions.GetWorkflowRunByID(m.Context(), m.owner, m.repo, *workflow.ID)
 			if err != nil {
 				return fmt.Errorf("get workflow run error: %w", err)
 			}
@@ -210,9 +225,8 @@ poll:
 			if c := workflow.Conclusion; c != nil && *c != "" {
 				break poll
 			}
-		case <-ctx.Done():
-			return ctx.Err()
-
+		case <-m.Context().Done():
+			return m.Context().Err()
 		}
 	}
 
@@ -223,7 +237,7 @@ poll:
 	return nil
 }
 
-func (m *cmd) render(v interface{}) error {
+func (m *callCmd) render(v interface{}) error {
 	switch strings.ToLower(m.typ) {
 	case "yaml":
 		p, err := yaml.Marshal(v)
