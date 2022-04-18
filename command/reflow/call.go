@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
 
 	"rafal.dev/reflow/command"
@@ -119,7 +119,7 @@ func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
 		}
 
 		if data != nil {
-			if t, err := template.New(k).Parse(s); err == nil {
+			if t, err := template.New(k).Funcs(m.Funcs).Parse(s); err == nil {
 				var buf bytes.Buffer
 
 				if err := t.Execute(&buf, data); err == nil {
