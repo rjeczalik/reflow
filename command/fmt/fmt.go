@@ -19,7 +19,7 @@ func NewCommand(app *command.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fmt",
 		Short: "Formatting",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE:  m.run,
 	}
 
