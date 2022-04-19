@@ -132,48 +132,56 @@ func (m *callCmd) unmarshal(p []byte, v interface{}) error {
 }
 
 func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
-	p, err := m.read(m.input)
-	if err != nil {
-		return command.Errorf("read error: %w", err)
-	}
-
-	if err := m.unmarshal(p, &m.inputs); err != nil {
-		return command.Errorf("unmarshal error: %w", err)
-	}
-
-	if m.work, err = parseWorkflow(m.uses); err != nil {
-		return command.Errorf("error parsing workflow: %w", err)
-	}
-
-	data := m.Template.JSON()
-
-	for k, v := range m.inputs {
-		var s string
-		switch v := v.(type) {
-		case nil:
-			s = ""
-		case int:
-			s = strconv.Itoa(v)
-		case string:
-			s = v
-		default:
-			s = fmt.Sprint(v)
-		}
-
-		if data != nil {
-			if t, err := template.New(k).Funcs(m.Funcs).Parse(s); err == nil {
-				var buf bytes.Buffer
-
-				if err := t.Execute(&buf, data); err == nil {
-					s = buf.String()
-				}
+	return func(cmd *cobra.Command, args []string) error {
+		if !cmd.Flag("inputs").Changed {
+			if s := os.Getenv("REFLOW_INPUTS"); s != "" {
+				m.input = s
 			}
 		}
 
-		m.inputs[k] = s
-	}
+		p, err := m.read(m.input)
+		if err != nil {
+			return fmt.Errorf("read error: %w", err)
+		}
 
-	return next
+		if err := m.unmarshal(p, &m.inputs); err != nil {
+			return fmt.Errorf("unmarshal error: %w", err)
+		}
+
+		if m.work, err = parseWorkflow(m.uses); err != nil {
+			return fmt.Errorf("error parsing workflow: %w", err)
+		}
+
+		data := m.Template.JSON()
+
+		for k, v := range m.inputs {
+			var s string
+			switch v := v.(type) {
+			case nil:
+				s = ""
+			case int:
+				s = strconv.Itoa(v)
+			case string:
+				s = v
+			default:
+				s = fmt.Sprint(v)
+			}
+
+			if data != nil {
+				if t, err := template.New(k).Funcs(m.Funcs).Parse(s); err == nil {
+					var buf bytes.Buffer
+
+					if err := t.Execute(&buf, data); err == nil {
+						s = buf.String()
+					}
+				}
+			}
+
+			m.inputs[k] = s
+		}
+
+		return next(cmd, args)
+	}
 }
 
 func (m *callCmd) run(*cobra.Command, []string) error {
