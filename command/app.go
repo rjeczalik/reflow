@@ -142,7 +142,7 @@ func (app *App) Init(next CobraFunc) CobraFunc {
 		}
 
 		if !cmd.Flag("context-values").Changed {
-			app.GitHubContext = os.Getenv("REFLOW_CONTEXT_VALUES")
+			app.ValuesContext = os.Getenv("REFLOW_CONTEXT_VALUES")
 		}
 
 		if app.GitHubContext != "" {
