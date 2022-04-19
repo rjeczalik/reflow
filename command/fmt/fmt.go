@@ -2,10 +2,10 @@ package fmt
 
 import (
 	"fmt"
-	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
+	"text/template"
 
 	"rafal.dev/reflow/command"
 

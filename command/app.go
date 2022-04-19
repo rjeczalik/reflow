@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"os"
 	"strings"
+	"text/template"
 
 	"rafal.dev/refmt/object"
 
@@ -106,7 +106,7 @@ var funcs = map[string]any{
 func NewApp(ctx context.Context) *App {
 	app := &App{
 		ctx:   ctx,
-		Funcs: sprig.FuncMap(),
+		Funcs: template.FuncMap(sprig.FuncMap()),
 		token: os.Getenv("GITHUB_TOKEN"),
 	}
 
