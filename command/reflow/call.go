@@ -55,7 +55,11 @@ func parseWorkflow(s string) (*workflow, error) {
 		v = make(map[string]string)
 	)
 
-	for i, group := range reUses.SubexpNames()[0:] {
+	if len(x) < len(reUses.SubexpNames()) {
+		return nil, fmt.Errorf("syntax ill-formed: %q", s)
+	}
+
+	for i, group := range reUses.SubexpNames() {
 		if i != 0 && group != "" {
 			v[group] = x[i]
 		}
@@ -69,7 +73,7 @@ func parseWorkflow(s string) (*workflow, error) {
 	var w workflow
 
 	if err := json.Unmarshal(p, &w); err != nil {
-		return nil, fmt.Errorf("unmarshal error: %w", err)
+		return nil, fmt.Errorf("parseWorkflow: unmarshal error: %w", err)
 	}
 
 	return &w, nil
@@ -145,7 +149,7 @@ func (m *callCmd) pre(next command.CobraFunc) command.CobraFunc {
 		}
 
 		if err := m.unmarshal(p, &m.inputs); err != nil {
-			return fmt.Errorf("unmarshal error: %w", err)
+			return fmt.Errorf("inputs: unmarshal error: %w", err)
 		}
 
 		if m.work, err = parseWorkflow(m.uses); err != nil {
