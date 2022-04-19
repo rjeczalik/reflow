@@ -34,6 +34,8 @@ type App struct {
 	GitHub   *github.Client
 	Template *Template
 	Funcs    template.FuncMap
+
+	token string
 }
 
 func envMarshal(v interface{}, prefix string) ([]byte, error) {
@@ -105,6 +107,7 @@ func NewApp(ctx context.Context) *App {
 	app := &App{
 		ctx:   ctx,
 		Funcs: sprig.FuncMap(),
+		token: os.Getenv("GITHUB_TOKEN"),
 	}
 
 	for name, fn := range funcs {
@@ -129,7 +132,7 @@ func (app *App) Register(f *pflag.FlagSet) {
 func (app *App) Init(next CobraFunc) CobraFunc {
 	app.GitHub = github.NewClient(oauth2.NewClient(app.Context(), oauth2.StaticTokenSource(
 		&oauth2.Token{
-			AccessToken: os.Getenv("GITHUB_TOKEN"),
+			AccessToken: app.token,
 		},
 	)))
 
@@ -187,8 +190,10 @@ func (app *App) buildValuesContext(cmd *cobra.Command) error {
 func (app *App) initTemplate() {
 	if app.Template == nil {
 		app.Template = &Template{
-			Git:    new(Git),
-			GitHub: make(Map),
+			Git: new(Git),
+			GitHub: Map{
+				"token": app.token,
+			},
 		}
 	}
 }
@@ -208,6 +213,8 @@ func (app *App) buildGithubContext(cmd *cobra.Command) error {
 	if err := dec.Decode(&app.Template.GitHub); err != nil {
 		return fmt.Errorf("error unmarshaling: %w", err)
 	}
+
+	app.Template.GitHub["token"] = app.token
 
 	switch r, ok := Get[string](app.gh(), "repository"); ok {
 	case true:
