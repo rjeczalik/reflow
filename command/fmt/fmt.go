@@ -1,6 +1,12 @@
 package fmt
 
 import (
+	"fmt"
+	"html/template"
+	"io"
+	"io/ioutil"
+	"os"
+
 	"rafal.dev/reflow/command"
 
 	"github.com/spf13/cobra"
@@ -13,7 +19,7 @@ func NewCommand(app *command.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "fmt",
 		Short: "Formatting",
-		Args:  cobra.NoArgs,
+		Args:  cobra.ExactArgs(1),
 		RunE:  m.run,
 	}
 
@@ -33,6 +39,28 @@ type fmtCmd struct {
 func (*fmtCmd) register(*pflag.FlagSet) {
 }
 
-func (*fmtCmd) run(*cobra.Command, []string) error {
+func (m *fmtCmd) run(_ *cobra.Command, args []string) error {
+	p, err := m.read(args)
+	if err != nil {
+		return fmt.Errorf("read error: %w", err)
+	}
+
+	t, err := template.New("").Funcs(m.Funcs).Parse(string(p))
+	if err != nil {
+		return fmt.Errorf("template parse error: %w", err)
+	}
+
+	if err := t.Execute(os.Stdout, m.Template.JSON()); err != nil {
+		return fmt.Errorf("template evaluation error: %w", err)
+	}
+
 	return nil
+}
+
+func (m *fmtCmd) read(args []string) ([]byte, error) {
+	if len(args) == 0 || args[0] == "-" {
+		return io.ReadAll(os.Stdin)
+	}
+
+	return ioutil.ReadFile(args[0])
 }
