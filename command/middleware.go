@@ -12,7 +12,7 @@ type Middleware func(CobraFunc) CobraFunc
 
 var nop CobraFunc = func(*cobra.Command, []string) error { return nil }
 
-func Errorf(message string, args ...interface{}) CobraFunc {
+func Errorf(message string, args ...any) CobraFunc {
 	return func(*cobra.Command, []string) error {
 		return fmt.Errorf(message, args...)
 	}

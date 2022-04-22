@@ -1,31 +1,25 @@
 package fmt
 
 import (
-	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"text/template"
-
 	"rafal.dev/reflow/command"
+	f "rafal.dev/reflow/pkg/fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 func NewCommand(app *command.App) *cobra.Command {
-	m := &fmtCmd{App: app}
+	m := &fmtCmd{
+		App:      app,
+		Formater: f.DefaultFormater,
+	}
 
 	cmd := &cobra.Command{
 		Use:   "fmt",
 		Short: "Formatting",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ExactArgs(2),
 		RunE:  m.run,
 	}
-
-	cmd.AddCommand(
-		NewMergeCommand(app),
-	)
 
 	m.register(cmd.Flags())
 
@@ -34,33 +28,14 @@ func NewCommand(app *command.App) *cobra.Command {
 
 type fmtCmd struct {
 	*command.App
+	*f.Formater
+	mask bool
 }
 
-func (*fmtCmd) register(*pflag.FlagSet) {
+func (m *fmtCmd) register(f *pflag.FlagSet) {
+	f.BoolVarP(&m.mask, "mask", "m", false, "List of keys to mask")
 }
 
 func (m *fmtCmd) run(_ *cobra.Command, args []string) error {
-	p, err := m.read(args)
-	if err != nil {
-		return fmt.Errorf("read error: %w", err)
-	}
-
-	t, err := template.New("").Funcs(m.Funcs).Parse(string(p))
-	if err != nil {
-		return fmt.Errorf("template parse error: %w", err)
-	}
-
-	if err := t.Execute(os.Stdout, m.Template.JSON()); err != nil {
-		return fmt.Errorf("template evaluation error: %w", err)
-	}
-
-	return nil
-}
-
-func (m *fmtCmd) read(args []string) ([]byte, error) {
-	if len(args) == 0 || args[0] == "-" {
-		return io.ReadAll(os.Stdin)
-	}
-
-	return ioutil.ReadFile(args[0])
+	return m.Formater.Format(m.Context(), args[0], args[1], m.mask)
 }

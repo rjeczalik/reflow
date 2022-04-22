@@ -3,6 +3,7 @@ package reflow
 import (
 	"rafal.dev/reflow/command"
 	"rafal.dev/reflow/command/fmt"
+	"rafal.dev/reflow/command/manifest"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -20,7 +21,8 @@ func NewCommand(app *command.App) *cobra.Command {
 
 	cmd.AddCommand(
 		fmt.NewCommand(app),
-		NewCallCommand(app),
+		manifest.NewCommand(app),
+		NewRunCommand(app),
 	)
 
 	m.register(cmd.Flags())

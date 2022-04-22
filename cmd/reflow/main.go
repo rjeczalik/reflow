@@ -15,9 +15,6 @@ func main() {
 	app := command.NewApp(contextProcess())
 	cmd := reflow.NewCommand(app)
 
-	app.Register(cmd.PersistentFlags())
-	command.PreUse(cmd, app.Init)
-
 	if err := cmd.Execute(); err != nil {
 		log.Fatal(err)
 	}

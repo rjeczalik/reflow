@@ -12,19 +12,19 @@ func TestParseWorkflow(t *testing.T) {
 			"scyllacloud",
 			"scylla-cloud",
 			"deploy.yaml",
-			"master",
+			"heads/master",
 		},
-		"tectumsh/tectum/.github/workflows/build-and-push-image.yaml@refs/heads/deploy/lab": {
+		"tectumsh/tectum/.github/workflows/build-and-push-image.yaml@heads/deploy/lab": {
 			"tectumsh",
 			"tectum",
 			"build-and-push-image.yaml",
-			"refs/heads/deploy/lab",
+			"heads/deploy/lab",
 		},
 		"rjeczalik/clef/.github/workflows/release.yaml@0850e2124b8d32d99d2d30865372e0f722c39a5f": {
 			"rjeczalik",
 			"clef",
 			"release.yaml",
-			"0850e2124b8d32d99d2d30865372e0f722c39a5f",
+			"heads/0850e2124b8d32d99d2d30865372e0f722c39a5f",
 		},
 	}
 
