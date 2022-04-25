@@ -14,9 +14,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var Builtin = []string{
+	"manifest",
+	"github",
+	"values",
+	"reflow",
+}
+
 var DefaultBuilder Builder = SeqBuilder{
 	&DirBuilder{Dir: misc.HomeDir("context")},
 	&ReflowBuilder{Client: misc.GitHub(context.Background())},
+	&DirBuilder{Dir: misc.HomeDir("templates"), Conv: Template, Exclude: Builtin},
 }
 
 type SeqBuilder []Builder
@@ -120,7 +128,7 @@ func (db *DirBuilder) Build(ctx context.Context, m map[string]any) error {
 			}
 		}
 
-		var v map[string]any
+		var v any
 
 		if err := unmarshal(p, &v); err != nil {
 			return fmt.Errorf("dir loader %q: %w", entry.Name(), err)

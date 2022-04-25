@@ -61,6 +61,28 @@ func FuncMap() template.FuncMap {
 				}
 				return string(p), nil
 			},
+			"toOutput": func(v any) string {
+				p, _ := githubOutput(v, "")
+				return string(p)
+			},
+			"mustToOutput": func(v any) (string, error) {
+				p, err := githubOutput(v, "")
+				if err != nil {
+					return "", err
+				}
+				return string(p), nil
+			},
+			"toOutputPrefix": func(prefix string, v any) string {
+				p, _ := githubOutput(v, prefix)
+				return string(p)
+			},
+			"mustToOutputPrefix": func(prefix string, v any) (string, error) {
+				p, err := githubOutput(v, prefix)
+				if err != nil {
+					return "", err
+				}
+				return string(p), nil
+			},
 			"error": func(s string) error {
 				return errors.New(s)
 			},
@@ -86,7 +108,7 @@ func Execute(s string, v any) ([]byte, error) {
 func envMarshal(v any, prefix string) ([]byte, error) {
 	m, ok := v.(map[string]any)
 	if !ok {
-		return nil, errors.New("envCoded: cannot marshal non-object value")
+		return nil, errors.New("envMarshal: cannot marshal non-object value")
 	}
 
 	var (
@@ -100,6 +122,26 @@ func envMarshal(v any, prefix string) ([]byte, error) {
 	}
 
 	return bytes.TrimSpace(buf.Bytes()), nil
+}
+
+func githubOutput(v any, prefix string) ([]byte, error) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, errors.New("envMarshal: cannot marshal non-object value")
+	}
+
+	var (
+		outputs = object.Flatten(m, "_")
+		keys    = object.Keys(outputs)
+		buf     bytes.Buffer
+	)
+
+	for _, k := range keys {
+		fmt.Fprintf(&buf, "::set-output name=%s%s::%s\n", prefix, k, fmt.Sprint(outputs[k]))
+	}
+
+	return bytes.TrimSpace(buf.Bytes()), nil
+
 }
 
 func merge(m, mixin template.FuncMap) template.FuncMap {
