@@ -39,12 +39,6 @@ func (m *runCmd) register(cmd *cobra.Command) {
 }
 
 func (m *runCmd) run(_ *cobra.Command, args []string) error {
-	outputs, err := m.Client.Run(m.App.Context(), args[0])
-	if err != nil {
-		return err
-	}
-
-	_ = outputs
-
-	return nil
+	_, err := m.Client.Run(m.App.Context(), args[0])
+	return err
 }

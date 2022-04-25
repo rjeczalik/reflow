@@ -15,8 +15,8 @@ var (
 )
 
 var (
-	Nop    = log.New(io.Discard, "debug", 0)
-	Logger = log.New(os.Stderr, "debug", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)
+	Nop    = log.New(io.Discard, "debug ", 0)
+	Logger = log.New(os.Stderr, "debug ", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)
 )
 
 func WithLog(ctx context.Context, l *log.Logger) context.Context {
