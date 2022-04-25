@@ -23,18 +23,18 @@ type Client struct {
 	PerPage   int
 	Interval  time.Duration
 	MaxLookup time.Duration
+	token     string
 }
 
 func New() *Client {
-	github := misc.GitHub(context.Background())
-
 	return &Client{
-		GitHub:    github,
+		GitHub:    misc.GitHub(context.Background()),
 		Fmt:       f.DefaultFormater,
 		Home:      misc.Home(),
 		PerPage:   10,
 		Interval:  30 * time.Second,
 		MaxLookup: 3 * time.Minute,
+		token:     misc.GitHubToken(),
 	}
 }
 
@@ -85,6 +85,8 @@ func (cl *Client) Run(ctx context.Context, runID string) (outputs map[string]any
 	if err := cl.Fmt.Unmarshal(runInputs, &inputs); err != nil {
 		return nil, fmt.Errorf("unmarshal inputs: %w", err)
 	}
+
+	c.Set(m, "reflow.token", cl.token)
 
 	if err := cl.templateInputs(ctx, inputs, m); err != nil {
 		return nil, fmt.Errorf("template inputs: %w", err)
