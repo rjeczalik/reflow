@@ -8,13 +8,13 @@ import (
 )
 
 func NewRunCommand(app *command.App) *cobra.Command {
-	m := &callCmd{
+	m := &runCmd{
 		App:    app,
 		Client: reflow.New(),
 	}
 
 	cmd := &cobra.Command{
-		Use:   "Run",
+		Use:   "run",
 		Short: "Run manual workflow",
 		Args:  cobra.ExactArgs(1),
 		RunE:  m.run,
@@ -25,12 +25,12 @@ func NewRunCommand(app *command.App) *cobra.Command {
 	return cmd
 }
 
-type callCmd struct {
+type runCmd struct {
 	*command.App
 	*reflow.Client
 }
 
-func (m *callCmd) register(cmd *cobra.Command) {
+func (m *runCmd) register(cmd *cobra.Command) {
 	f := cmd.Flags()
 
 	f.IntVarP(&m.Client.PerPage, "pages", "p", m.Client.PerPage, "Per page limit while listing workflows")
@@ -38,7 +38,7 @@ func (m *callCmd) register(cmd *cobra.Command) {
 	f.DurationVarP(&m.MaxLookup, "max-lookup", "x", m.Client.MaxLookup, "Max time for looking up a workflow run")
 }
 
-func (m *callCmd) run(_ *cobra.Command, args []string) error {
+func (m *runCmd) run(_ *cobra.Command, args []string) error {
 	outputs, err := m.Client.Run(m.App.Context(), args[0])
 	if err != nil {
 		return err

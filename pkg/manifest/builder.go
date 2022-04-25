@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"gopkg.in/yaml.v3"
 	"rafal.dev/reflow/internal/misc"
 	c "rafal.dev/reflow/pkg/context"
 	f "rafal.dev/reflow/pkg/fmt"
 
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
 )
 
 var DefaultBuilder = &Builder{
@@ -28,23 +28,26 @@ type Builder struct {
 }
 
 func (b *Builder) Build(ctx context.Context, r io.Reader) error {
-	var (
-		github = make(map[string]any)
-		inputs = make(map[string]any)
-	)
+	var m map[string]any
 
 	dec := yaml.NewDecoder(r)
 
-	if err := dec.Decode(&github); err != nil {
-		return fmt.Errorf("decoding github: %w", err)
+	if err := dec.Decode(&m); err != nil {
+		return fmt.Errorf("decoding manifest: %w", err)
 	}
 
-	if err := dec.Decode(&inputs); err != nil {
-		return fmt.Errorf("decoding inputs: %w", err)
+	c.Del(m, "github.token")
+	c.Del(m, "inputs.token")
+
+	github, err := c.Get[map[string]any](m, "github")
+	if err != nil {
+		return fmt.Errorf("accessing github: %w", err)
 	}
 
-	c.Del(github, "token")
-	c.Del(inputs, "token")
+	inputs, err := c.Get[map[string]any](m, "inputs")
+	if err != nil {
+		return fmt.Errorf("accessing inputs: %w", err)
+	}
 
 	var (
 		id  = uuid.New().String()
@@ -98,13 +101,13 @@ func (b *Builder) Build(ctx context.Context, r io.Reader) error {
 		return fmt.Errorf("writing inputs: %w", err)
 	}
 
-	m := map[string]any{
+	manifest := map[string]any{
 		"uses":  uses,
 		"id":    id,
 		"debug": dbg,
 	}
 
-	if err := b.Fmt.Marshal(m, manifestFile); err != nil {
+	if err := b.Fmt.Marshal(manifest, manifestFile); err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
 

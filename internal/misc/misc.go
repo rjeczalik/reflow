@@ -100,7 +100,8 @@ func Nonzero[T comparable](t ...T) T {
 	var zero T
 
 	for _, t := range t {
-		if t == zero {
+		if t != zero {
+			return t
 		}
 	}
 
