@@ -61,6 +61,9 @@ func FuncMap() template.FuncMap {
 				}
 				return string(p), nil
 			},
+			"error": func(s string) error {
+				return errors.New(s)
+			},
 		},
 	)
 }
