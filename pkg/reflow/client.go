@@ -68,9 +68,9 @@ func (cl *Client) Run(ctx context.Context, runID string) (outputs map[string]any
 	b := c.SeqBuilder{
 		&c.DirBuilder{Dir: os.DirFS(runContext)},
 		&c.ReflowBuilder{Client: cl.GitHub},
-		&c.DirBuilder{Dir: os.DirFS(runTemplates), Conv: c.Template},
 		&c.DirBuilder{Dir: os.DirFS(homeContext), Exclude: excludes},
 		&c.DirBuilder{Dir: os.DirFS(homeTemplates), Conv: c.Template, Exclude: excludes},
+		&c.DirBuilder{Dir: os.DirFS(runTemplates), Conv: c.Template},
 	}
 
 	m := make(map[string]any)
